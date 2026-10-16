@@ -51,7 +51,7 @@ class EnergyTradingApplicationTests {
         mockMvc.perform(get("/api/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
-                .andExpect(jsonPath("$.batch").value("Batch 1: Scaffolding, Database & Domain Model"))
+                .andExpect(jsonPath("$.batch").value("Batch 2: Meter Validation, Privacy & Anomaly Detection"))
                 .andExpect(jsonPath("$.database.status").value("UP"))
                 .andExpect(jsonPath("$.database.product").value("H2"));
     }
@@ -114,9 +114,10 @@ class EnergyTradingApplicationTests {
     }
 
     @Test
-    @DisplayName("Non-API paths require authentication")
+    @DisplayName("Non-public paths require authentication (401 with a Basic challenge)")
     void nonApiPathsRequireAuthentication() throws Exception {
         mockMvc.perform(get("/internal/anything"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().exists(HttpHeaders.WWW_AUTHENTICATE));
     }
 }

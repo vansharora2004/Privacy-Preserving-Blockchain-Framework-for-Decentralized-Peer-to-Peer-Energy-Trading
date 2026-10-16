@@ -34,7 +34,7 @@ public class HealthController {
         response.put("status", databaseUp ? "UP" : "DOWN");
         response.put("application", "Privacy-Preserving and Trust-Aware P2P Energy Trading");
         response.put("version", "0.0.1-SNAPSHOT");
-        response.put("batch", "Batch 1: Scaffolding, Database & Domain Model");
+        response.put("batch", "Batch 2: Meter Validation, Privacy & Anomaly Detection");
         response.put("database", database);
         response.put("timestamp", Instant.now().toString());
         return ResponseEntity.status(databaseUp ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE).body(response);

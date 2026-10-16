@@ -1,8 +1,10 @@
 package com.energytrading.config;
 
+import com.energytrading.security.JsonSecurityErrorHandler;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -34,15 +36,21 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JsonSecurityErrorHandler errorHandler) throws Exception {
         http
+            // Stateless JSON API authenticated with HTTP Basic (no session or cookie), so CSRF tokens
+            // are not used; state-changing endpoints only accept application/json bodies.
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .httpBasic(basic -> basic.authenticationEntryPoint(errorHandler))
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(errorHandler).accessDeniedHandler(errorHandler))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/health", "/api/public/**", "/error").permitAll()
-                // For Batch 1 development and verification, allow API access; fine-grained roles will be wired in Batch 2
-                .requestMatchers("/api/**").permitAll()
+                // Explicit public allowlist: non-sensitive data only
+                .requestMatchers(HttpMethod.GET, "/api/health", "/api/public/**", "/api/privacy/public/**").permitAll()
+                .requestMatchers("/error").permitAll()
+                // Everything else requires authentication; role and ownership rules are enforced
+                // with @PreAuthorize and AccessPolicy in the controllers and services
                 .anyRequest().authenticated()
             );
 

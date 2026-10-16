@@ -5,6 +5,7 @@ import com.energytrading.model.MeterReading;
 import com.energytrading.model.User;
 import com.energytrading.model.enums.ReadingValidationStatus;
 import com.energytrading.model.enums.Role;
+import com.energytrading.privacy.DigestService;
 import com.energytrading.repository.AuditLogRepository;
 import com.energytrading.repository.MeterReadingRepository;
 import com.energytrading.repository.UserRepository;
@@ -17,11 +18,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 
 @Component
@@ -33,6 +32,7 @@ public class DataInitializer implements CommandLineRunner {
     private final MeterReadingRepository meterReadingRepository;
     private final AuditLogRepository auditLogRepository;
     private final PasswordEncoder passwordEncoder;
+    private final DigestService digestService;
     private final boolean seedEnabled;
     private final String householdPassword;
     private final String adminPassword;
@@ -41,6 +41,7 @@ public class DataInitializer implements CommandLineRunner {
                            MeterReadingRepository meterReadingRepository,
                            AuditLogRepository auditLogRepository,
                            PasswordEncoder passwordEncoder,
+                           DigestService digestService,
                            @Value("${app.seed.enabled:true}") boolean seedEnabled,
                            @Value("${app.seed.household-password:}") String householdPassword,
                            @Value("${app.seed.admin-password:}") String adminPassword) {
@@ -48,6 +49,7 @@ public class DataInitializer implements CommandLineRunner {
         this.meterReadingRepository = meterReadingRepository;
         this.auditLogRepository = auditLogRepository;
         this.passwordEncoder = passwordEncoder;
+        this.digestService = digestService;
         this.seedEnabled = seedEnabled;
         this.householdPassword = householdPassword;
         this.adminPassword = adminPassword;
@@ -110,35 +112,10 @@ public class DataInitializer implements CommandLineRunner {
         userRepository.save(buyer);
         userRepository.save(admin);
 
-        // 2. Create initial valid meter readings
-        String sellerDigest = calculateSha256("HH-001|MR-HH001-0001|1|8.5|3.5|5.0");
-        MeterReading readingSeller = new MeterReading(
-            seller,
-            "MR-HH001-0001",
-            1L,
-            8.5,
-            3.5,
-            5.0,
-            LocalDateTime.now().minusHours(1),
-            ReadingValidationStatus.VALID,
-            sellerDigest
-        );
-
-        String buyerDigest = calculateSha256("HH-002|MR-HH002-0001|1|1.0|4.0|-3.0");
-        MeterReading readingBuyer = new MeterReading(
-            buyer,
-            "MR-HH002-0001",
-            1L,
-            1.0,
-            4.0,
-            -3.0,
-            LocalDateTime.now().minusHours(1),
-            ReadingValidationStatus.VALID,
-            buyerDigest
-        );
-
-        meterReadingRepository.save(readingSeller);
-        meterReadingRepository.save(readingBuyer);
+        // 2. Create initial valid meter readings (digest: canonical SHA-256, see DigestService)
+        LocalDateTime readingTime = LocalDateTime.now().minusHours(1).truncatedTo(ChronoUnit.MICROS);
+        meterReadingRepository.save(seedReading(seller, "MR-HH001-0001", "8.5", "3.5", readingTime));
+        meterReadingRepository.save(seedReading(buyer, "MR-HH002-0001", "1.0", "4.0", readingTime));
 
         // 3. Create initial audit log entry
         AuditLog seedLog = new AuditLog(
@@ -168,13 +145,14 @@ public class DataInitializer implements CommandLineRunner {
         return HexFormat.of().formatHex(random);
     }
 
-    private String calculateSha256(String input) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] encodedhash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(encodedhash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 algorithm not available", e);
-        }
+    private MeterReading seedReading(User household, String readingId, String generated, String consumed,
+                                     LocalDateTime readingTime) {
+        BigDecimal gen = new BigDecimal(generated);
+        BigDecimal cons = new BigDecimal(consumed);
+        BigDecimal available = gen.subtract(cons);
+        String digest = digestService.meterReadingDigest(household.getHouseholdCode(), readingId, 1L,
+                gen, cons, available, readingTime);
+        return new MeterReading(household, readingId, 1L, gen.doubleValue(), cons.doubleValue(),
+                available.doubleValue(), readingTime, ReadingValidationStatus.VALID, digest);
     }
 }
