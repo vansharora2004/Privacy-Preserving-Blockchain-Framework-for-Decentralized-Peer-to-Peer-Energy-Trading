@@ -1,0 +1,24 @@
+{
+  "name": "energy-trading-blockchain",
+  "version": "1.0.0",
+  "description": "Hardhat local blockchain environment for Energy Trading smart contracts",
+  "main": "hardhat.config.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost"
+  },
+  "keywords": [
+    "hardhat",
+    "ethereum",
+    "solidity",
+    "smart-contracts"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.10"
+  }
+}
