@@ -2,8 +2,12 @@ package com.energytrading.model;
 
 import com.energytrading.model.enums.Role;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -29,24 +33,32 @@ public class User {
     @Column(length = 150)
     private String fullName;
 
+    @Email
     @Column(unique = true, length = 150)
     private String email;
 
+    @NotBlank
     @Column(nullable = false, length = 255)
     private String passwordHash;
 
     @NotNull
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private Role role;
 
     @NotNull
+    @PositiveOrZero
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
+    @NotNull
+    @PositiveOrZero
     @Column(nullable = false)
     private Double currentSurplusKwh = 0.0;
 
+    @NotNull
+    @PositiveOrZero
     @Column(nullable = false)
     private Double currentDeficitKwh = 0.0;
 

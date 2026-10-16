@@ -10,14 +10,17 @@ import com.energytrading.repository.MeterReadingRepository;
 import com.energytrading.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HexFormat;
 
@@ -30,25 +33,41 @@ public class DataInitializer implements CommandLineRunner {
     private final MeterReadingRepository meterReadingRepository;
     private final AuditLogRepository auditLogRepository;
     private final PasswordEncoder passwordEncoder;
+    private final boolean seedEnabled;
+    private final String householdPassword;
+    private final String adminPassword;
 
     public DataInitializer(UserRepository userRepository,
                            MeterReadingRepository meterReadingRepository,
                            AuditLogRepository auditLogRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           @Value("${app.seed.enabled:true}") boolean seedEnabled,
+                           @Value("${app.seed.household-password:}") String householdPassword,
+                           @Value("${app.seed.admin-password:}") String adminPassword) {
         this.userRepository = userRepository;
         this.meterReadingRepository = meterReadingRepository;
         this.auditLogRepository = auditLogRepository;
         this.passwordEncoder = passwordEncoder;
+        this.seedEnabled = seedEnabled;
+        this.householdPassword = householdPassword;
+        this.adminPassword = adminPassword;
     }
 
     @Override
+    @Transactional
     public void run(String... args) {
+        if (!seedEnabled) {
+            log.info("Demo data seeding disabled (app.seed.enabled=false).");
+            return;
+        }
         if (userRepository.count() > 0) {
             log.info("Database already contains users. Skipping demo data initialization.");
             return;
         }
 
         log.info("Initializing demo households, meter readings, and audit log...");
+        String householdSecret = resolvePassword(householdPassword, "DEMO_HOUSEHOLD_PASSWORD");
+        String adminSecret = resolvePassword(adminPassword, "DEMO_ADMIN_PASSWORD");
 
         // 1. Create demo users / households
         User seller = new User(
@@ -56,7 +75,7 @@ public class DataInitializer implements CommandLineRunner {
             "SolarHouse Alpha",
             "Alice Sharma",
             "alice@demo.energy",
-            passwordEncoder.encode("password123"),
+            passwordEncoder.encode(householdSecret),
             Role.ROLE_HOUSEHOLD,
             BigDecimal.valueOf(500.00),
             5.0, // 5 kWh surplus
@@ -68,7 +87,7 @@ public class DataInitializer implements CommandLineRunner {
             "GreenVilla Beta",
             "Bob Verma",
             "bob@demo.energy",
-            passwordEncoder.encode("password123"),
+            passwordEncoder.encode(householdSecret),
             Role.ROLE_HOUSEHOLD,
             BigDecimal.valueOf(1000.00),
             0.0,
@@ -80,7 +99,7 @@ public class DataInitializer implements CommandLineRunner {
             "Grid Overseer",
             "System Administrator",
             "admin@demo.energy",
-            passwordEncoder.encode("admin123"),
+            passwordEncoder.encode(adminSecret),
             Role.ROLE_ADMIN,
             BigDecimal.valueOf(10000.00),
             0.0,
@@ -132,6 +151,21 @@ public class DataInitializer implements CommandLineRunner {
         auditLogRepository.save(seedLog);
 
         log.info("Demo data initialization completed successfully.");
+    }
+
+    /**
+     * Returns the configured demo password, or a random one when none is configured,
+     * so no default credential is ever hardcoded. Passwords are never logged.
+     */
+    private String resolvePassword(String configured, String envName) {
+        if (configured != null && !configured.isBlank()) {
+            return configured;
+        }
+        log.warn("{} not set; demo account(s) seeded with a random password. "
+                + "Set {} before first startup to enable demo logins.", envName, envName);
+        byte[] random = new byte[24];
+        new SecureRandom().nextBytes(random);
+        return HexFormat.of().formatHex(random);
     }
 
     private String calculateSha256(String input) {

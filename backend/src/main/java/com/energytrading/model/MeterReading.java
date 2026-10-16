@@ -2,15 +2,24 @@ package com.energytrading.model;
 
 import com.energytrading.model.enums.ReadingValidationStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "meter_readings", indexes = {
-    @Index(name = "idx_reading_id", columnList = "readingId", unique = true),
-    @Index(name = "idx_household_sequence", columnList = "household_id, sequenceNo")
-})
+@Table(name = "meter_readings",
+    uniqueConstraints = {
+        // A household may never reuse a sequence number (replay protection)
+        @UniqueConstraint(name = "uk_household_sequence", columnNames = {"household_id", "sequence_no"})
+    },
+    indexes = {
+        @Index(name = "idx_reading_id", columnList = "readingId", unique = true),
+        @Index(name = "idx_household_sequence", columnList = "household_id, sequenceNo")
+    })
 public class MeterReading {
 
     @Id
@@ -19,7 +28,7 @@ public class MeterReading {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "household_id", nullable = false)
+    @JoinColumn(name = "household_id", nullable = false, foreignKey = @ForeignKey(name = "fk_reading_household"))
     private User household;
 
     @NotBlank
@@ -27,14 +36,17 @@ public class MeterReading {
     private String readingId;
 
     @NotNull
+    @Positive
     @Column(nullable = false)
     private Long sequenceNo;
 
     @NotNull
+    @PositiveOrZero
     @Column(nullable = false)
     private Double energyGeneratedKwh;
 
     @NotNull
+    @PositiveOrZero
     @Column(nullable = false)
     private Double energyConsumedKwh;
 
@@ -48,6 +60,7 @@ public class MeterReading {
 
     @NotNull
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private ReadingValidationStatus validationStatus = ReadingValidationStatus.PENDING;
 

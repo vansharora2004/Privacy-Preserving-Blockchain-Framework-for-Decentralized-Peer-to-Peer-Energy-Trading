@@ -3,6 +3,8 @@ package com.energytrading.model;
 import com.energytrading.model.enums.AnomalyReviewStatus;
 import com.energytrading.model.enums.AnomalySeverity;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDateTime;
@@ -31,6 +33,7 @@ public class AnomalyLog {
 
     @NotNull
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private AnomalySeverity severity = AnomalySeverity.MEDIUM;
 
@@ -40,6 +43,7 @@ public class AnomalyLog {
 
     @NotNull
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private AnomalyReviewStatus reviewStatus = AnomalyReviewStatus.DETECTED;
 

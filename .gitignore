@@ -114,3 +114,6 @@ coverage.json
 # Test reports
 test-results/
 surefire-reports/
+
+# Local database backups (contain user data and password hashes)
+database/backups/

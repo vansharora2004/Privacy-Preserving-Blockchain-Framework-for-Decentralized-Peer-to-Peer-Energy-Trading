@@ -2,8 +2,12 @@ package com.energytrading.model;
 
 import com.energytrading.model.enums.OfferStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -11,7 +15,8 @@ import java.time.LocalDateTime;
 @Table(name = "energy_offers", indexes = {
     @Index(name = "idx_offer_id", columnList = "offerId", unique = true),
     @Index(name = "idx_offer_status", columnList = "status"),
-    @Index(name = "idx_offer_seller", columnList = "seller_id")
+    @Index(name = "idx_offer_seller", columnList = "seller_id"),
+    @Index(name = "idx_offer_source_reading", columnList = "source_reading_id")
 })
 public class EnergyOffer {
 
@@ -21,11 +26,11 @@ public class EnergyOffer {
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seller_id", nullable = false)
+    @JoinColumn(name = "seller_id", nullable = false, foreignKey = @ForeignKey(name = "fk_offer_seller"))
     private User seller;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "source_reading_id")
+    @JoinColumn(name = "source_reading_id", foreignKey = @ForeignKey(name = "fk_offer_source_reading"))
     private MeterReading sourceReading;
 
     @NotBlank
@@ -33,19 +38,23 @@ public class EnergyOffer {
     private String offerId;
 
     @NotNull
+    @Positive
     @Column(nullable = false)
     private Double quantityKwh;
 
     @NotNull
+    @PositiveOrZero
     @Column(nullable = false)
     private Double remainingKwh;
 
     @NotNull
+    @Positive
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal pricePerKwh;
 
     @NotNull
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private OfferStatus status = OfferStatus.ACTIVE;
 

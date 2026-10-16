@@ -2,8 +2,12 @@ package com.energytrading.model;
 
 import com.energytrading.model.enums.TradeStatus;
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -13,7 +17,8 @@ import java.time.LocalDateTime;
     @Index(name = "idx_tx_hash", columnList = "txHash"),
     @Index(name = "idx_buyer_id", columnList = "buyer_id"),
     @Index(name = "idx_seller_id", columnList = "seller_id"),
-    @Index(name = "idx_trade_status", columnList = "status")
+    @Index(name = "idx_trade_status", columnList = "status"),
+    @Index(name = "idx_trade_offer", columnList = "offer_id")
 })
 public class TradeTransaction {
 
@@ -26,33 +31,37 @@ public class TradeTransaction {
     private String tradeId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "offer_id")
+    @JoinColumn(name = "offer_id", foreignKey = @ForeignKey(name = "fk_trade_offer"))
     private EnergyOffer offer;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "buyer_id", nullable = false)
+    @JoinColumn(name = "buyer_id", nullable = false, foreignKey = @ForeignKey(name = "fk_trade_buyer"))
     private User buyer;
 
     @NotNull
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seller_id", nullable = false)
+    @JoinColumn(name = "seller_id", nullable = false, foreignKey = @ForeignKey(name = "fk_trade_seller"))
     private User seller;
 
     @NotNull
+    @Positive
     @Column(nullable = false)
     private Double quantityKwh;
 
     @NotNull
+    @Positive
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal pricePerKwh;
 
     @NotNull
+    @PositiveOrZero
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal totalAmount;
 
     @NotNull
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 30)
     private TradeStatus status = TradeStatus.PENDING;
 
