@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>P2P Energy Exchange</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/webjars/bootstrap/5.3.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg app-navbar sticky-top">
+    <div class="container-fluid">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="#/">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>P2P Energy Exchange</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav me-auto" id="navLinks"></ul>
+            <div class="d-flex align-items-center gap-2" id="sessionBox"></div>
+        </div>
+    </div>
+</nav>
+
+<main class="container-xl py-4" id="view" tabindex="-1" aria-live="polite"></main>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toasts"></div>
+
+<div class="modal fade" id="appModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="appModalTitle"></h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="appModalBody"></div>
+            <div class="modal-footer" id="appModalFooter"></div>
+        </div>
+    </div>
+</div>
+
+<footer class="app-footer container-xl pb-4">
+    Academic prototype: simulated meter readings and trades on a local Hardhat chain. Households appear only
+    as pseudonyms outside their own and administrator views.
+</footer>
+
+<script src="/webjars/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

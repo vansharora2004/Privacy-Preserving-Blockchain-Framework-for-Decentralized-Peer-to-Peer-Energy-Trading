@@ -4,6 +4,53 @@ A prototype peer-to-peer (P2P) energy trading framework combining smart-meter va
 
 ---
 
+## Run the Demo (one command)
+
+Prerequisites: JDK 21+, Maven 3.9+, Node.js 18+ (with npm), and MySQL 8 with the schema applied
+(see [Database Setup](#3-database-setup); the Docker container `mysql-energy` is assumed below).
+
+```powershell
+docker start mysql-energy                # if MySQL runs in Docker
+./scripts/start-demo.ps1                 # Hardhat node + contract + backend
+# open http://localhost:8082/
+```
+[`scripts/start-demo.ps1`](scripts/start-demo.ps1):
+1. checks Java, Maven, Node.js and the MySQL port;
+2. opens a **Hardhat node** in its own window (close that window to simulate a blockchain outage);
+3. reuses the contract in `blockchain/deployments/localhost.json` if it is still live on the node,
+   otherwise deploys a new one with Hardhat dev account #1 as the recorder;
+4. builds the backend if needed and runs it in the current window (**Ctrl+C** stops it cleanly).
+
+Options: `-DbName <name>` (default `energy_trading`), `-Rebuild` (rebuild after code changes),
+`-NoBlockchain` (marketplace without a chain; trades stay PENDING).
+
+**Secrets are never printed.** The MySQL password comes from `DB_PASSWORD`, or, if that is unset,
+from the Docker container's `MYSQL_ROOT_PASSWORD`, or from a prompt. `PRIVACY_PSEUDONYM_KEY` is
+used if set; otherwise a random key is generated **once** and saved as a user environment variable,
+so pseudonyms stay stable between runs. The backend signs with Hardhat's publicly known development
+account #1: it holds no real value, and the helper refuses to run against any chain other than a
+local Hardhat node (chain ID 31337) with the default development accounts.
+
+**Demo accounts.** Sign in with the household code as the username:
+
+| Account | Role | Password |
+|---|---|---|
+| `HH-001` (SolarHouse Alpha) | household, seller | the household demo password |
+| `HH-002` (GreenVilla Beta) | household, buyer | the household demo password |
+| `HH-ADMIN` (Grid Overseer) | administrator | the admin demo password |
+
+Passwords are not stored in this repository.
+- **New, empty database:** before the first start, set `$env:DEMO_HOUSEHOLD_PASSWORD` and
+  `$env:DEMO_ADMIN_PASSWORD`. They are seeded once as BCrypt hashes.
+- **Existing local `energy_trading` database:** its passwords were rotated. They are in the user
+  environment variables `ENERGY_TRADING_HH001_PASSWORD`, `ENERGY_TRADING_HH002_PASSWORD` and
+  `ENERGY_TRADING_HHADMIN_PASSWORD`; read one with
+  `[Environment]::GetEnvironmentVariable('ENERGY_TRADING_HH001_PASSWORD','User')`.
+
+A step-by-step presentation script is in [Batch 4: Demo walkthrough](#demo-walkthrough).
+
+---
+
 ## Project Structure
 
 ```text
@@ -19,8 +66,10 @@ A prototype peer-to-peer (P2P) energy trading framework combining smart-meter va
 │       │   │   ├── repository/ # Spring Data JPA Repositories
 │       │   │   └── service/  # Core business services (Batch 2+)
 │       │   └── resources/
-│       │       └── application.properties
+│       │       ├── application.properties
+│       │       └── static/   # Dashboard: index.html, css/app.css, js/*.js (Batch 4)
 │       └── test/             # JUnit, @DataJpaTest & MockMvc tests (+ opt-in MySQL IT)
+├── scripts/start-demo.ps1    # One-command local demo (Batch 4)
 ├── blockchain/               # Hardhat EVM local development environment
 │   ├── contracts/            # EnergyTrading.sol (Batch 3)
 │   ├── scripts/              # Deployment and test scripts
@@ -440,6 +489,99 @@ EXPIRED) and `OfferStatus.EXPIRED` need no schema change, because status columns
 
 ---
 
+## Batch 4: Dashboard and Demo
+
+The dashboard is a static single-page application served by Spring Boot at
+`http://localhost:8082/`. It uses Bootstrap 5.3 (served locally from a WebJar, so it works offline)
+and plain JavaScript modules, and it calls only the REST API described above.
+
+| Role | Pages |
+|---|---|
+| Visitor (not signed in) | Sign-in page with the public market summary, recent confirmed trades and household pseudonyms; **Public view** |
+| Household | **Overview** (balance, energy you can offer, surplus/deficit, recent trades) · **Smart meter** (submit readings, see VALID / FLAGGED / REJECTED with the rule that fired, replay test, integrity check) · **Marketplace** (open offers, buy, create an offer with an anomaly pre-check, cancel own offers) · **My trades** (status, transaction hash, block, history, on-chain verification) · **Privacy center** (own private profile next to what the public sees) |
+| Administrator | **Overview** (counts, trades needing attention, blockchain health) · **Trades** (approve / reject flagged trades, reconcile, cancel, resolve NEEDS_REVIEW, re-anchor, submission attempts) · **Offers** (cancel) · **Households** (private profiles) · **Anomalies** (review status) · **Blockchain** (verification, alerts, anchor audit) · **Audit log** |
+| Auditor | The administrator pages read-only, without private household profiles |
+
+**What the dashboard shows** comes from the backend; nothing is inferred:
+- A trade is shown as CONFIRMED only when the backend says so, with the real transaction hash and
+  block number.
+- PENDING and SUBMITTED trades carry the backend's explanation (for example "queued for blockchain
+  submission" or "outcome not yet known") and refresh automatically.
+- Business outcomes (REJECTED, FLAGGED) are shown with every rule code and message.
+
+**Security and privacy in the browser:**
+- Credentials are sent as HTTP Basic over the same origin. They are kept only in the tab's
+  `sessionStorage`, cleared on sign-out or when the tab closes, and never logged.
+- Server data is inserted as text, never as HTML.
+- A strict Content-Security-Policy allows only same-origin scripts, styles and connections: no
+  inline scripts and no CDNs.
+- Dashboard requests send `X-Requested-With: XMLHttpRequest`. For those, a 401 omits the Basic
+  challenge, so the browser does not pop up its own login dialog; other clients still receive it.
+- Only static assets (`/`, `/index.html`, `/css/**`, `/js/**`, `/webjars/**`) are public. Every
+  API endpoint keeps its authentication, roles and ownership checks. The UI hides actions a role
+  cannot perform, but the server enforces them.
+
+### Demo walkthrough
+Start with `./scripts/start-demo.ps1`, open `http://localhost:8082/`, then:
+
+1. **Public view (scenario F).** On the sign-in page, point out that visitors see only aggregate
+   figures, pseudonyms and confirmed trades as quantity, price and transaction hash. Market figures
+   are withheld while fewer than 3 sellers are active.
+2. **Seller: valid reading.** Sign in as `HH-001` and open **Smart meter**. The form is pre-filled
+   (8 kWh generated, 3 kWh consumed). **Submit reading** gives `VALID (HTTP 201)` with its SHA-256
+   record digest.
+3. **Replay (scenario C).** Click **Resubmit last reading (replay test)**: `REJECTED`,
+   `DUPLICATE_READING_ID` / `DUPLICATE_SEQUENCE`.
+4. **Manipulated reading (scenario B).** Change *Energy generated* to `50` and submit: `REJECTED`,
+   `IMPLAUSIBLE_READING`; nothing is stored. **Check integrity** on a stored reading gives `MATCH`.
+5. **Overselling (scenario D).** Open **Marketplace** ("You can offer up to 5 kWh"). Offer `100`
+   kWh at `8.00`: `Offer REJECTED`, `OVERSELLING`.
+6. **Abnormal price (scenario E).** Enter `1` kWh at `100` and click **Check first**:
+   `Pre-check: FLAGGED`, `SUSPICIOUS_PRICE` (above Rs 15/kWh). Nothing is created.
+7. **Create the offer.** `5` kWh at `8.00`, then **Create offer**: `PASSED`; it appears under
+   *Your offers*.
+8. **Buyer: valid trade (scenario A).** Sign out and sign in as `HH-002`. In **Marketplace**, buy
+   `3` kWh from that offer: `Purchase CONFIRMED (HTTP 201)`, total Rs 24.00, with the real
+   transaction hash and block number from the local chain.
+9. **Duplicate request.** Click **Send the same request again (replay test)**. It reuses the same
+   `Idempotency-Key`, and the original trade comes back (HTTP 200); nothing is charged twice.
+10. **Verification.** Open **My trades** → **Details** → **Verify on blockchain**: `MATCH`
+    against the contract. The history shows PENDING → SUBMITTED → CONFIRMED.
+11. **Privacy and authorization (scenario F).**
+    - **Privacy center** shows your private profile next to the public view.
+    - Typing `#/admin` in the address bar returns you to your own dashboard.
+    - The API itself refuses: `GET /api/households` returns 403 for a household.
+12. **Administrator.** Sign in as `HH-ADMIN`.
+    - **Anomalies** lists the rejected and flagged findings; change one to `UNDER_REVIEW`.
+    - **Households** shows private profiles.
+    - **Blockchain** shows "Connected and verified".
+    - **Audit log** shows every request.
+13. **Blockchain failure (scenario G).**
+    - Close the *Hardhat node* window.
+    - As `HH-002`, buy 1 kWh: `Purchase PENDING (HTTP 202)`, "queued for blockchain submission".
+      It is never shown as confirmed, and the funds stay reserved.
+    - As admin, **Blockchain** shows "Blockchain not usable" with a `NETWORK_VERIFICATION_FAILED`
+      alert.
+14. **Recovery.**
+    - Stop the backend (Ctrl+C) and run `./scripts/start-demo.ps1` again. It starts a fresh node,
+      sees that the old deployment is gone, and deploys a new contract.
+    - The queued trade is submitted to the new chain and becomes CONFIRMED (or click **Reconcile
+      with blockchain**).
+    - **Run anchor audit**: trades confirmed on the old chain show `ANCHOR_MISSING`.
+    - Open one and choose **Re-anchor on current chain**, giving a reason and the attestation. It is
+      re-recorded without moving money, and **Verify on blockchain** gives `MATCH`.
+
+**Troubleshooting:**
+- **Port 8082 in use:** the backend is already running; stop it with Ctrl+C.
+- **`Schema-validation` at startup:** apply `database/schema.sql` (new database) or the migrations
+  (existing one).
+- **Login fails on a new database:** `DEMO_*_PASSWORD` was not set before the first start. Create
+  a fresh database, or rotate the passwords as described in `docs/privacy-and-security.md`.
+- **Signing pauses for up to 30 s after a killed backend:** the old instance's signer lease must
+  expire first. Ctrl+C avoids this.
+- **The Hardhat node was restarted:** the chain is empty. Re-run the script, which redeploys, and
+  follow step 14 for trades from the old chain.
+
 ## Verification
 
 ```powershell
@@ -480,6 +622,12 @@ Batch 3 tests:
 - `SignerLeaseTests`: exclusive lease, takeover with fencing, competing and crashed instances.
 - `KeyRotationTests`: stored party references survive a pseudonym-key change.
 - `PublicPrivacyApiTests`: the exact fields of every public response and the k=3 market threshold.
+- `DashboardIntegrationTests` (Batch 4): the dashboard and local Bootstrap assets load without
+  authentication and with the CSP and referrer headers; no inline script, external origin or
+  secret in the served files; every API endpoint still answers 401 without credentials; dashboard
+  (XHR) 401s carry no Basic challenge.
+- The browser walkthrough above (scenarios A-G) was also run end to end against MySQL and a Hardhat
+  node with a headless browser during Batch 4. That harness is not part of the repository.
 - The live `*IT` tests: real Web3j against Hardhat, including revert, duplicate and RPC-down cases.
 The H2 tests cover Batch 2 validation rules, anomaly rules and thresholds, canonical digests,
 pseudonyms, the role/ownership policy through the real security filter chain, database-constraint
@@ -495,7 +643,7 @@ that the datasource really connects to MySQL and that Hibernate validation passe
 - **Batch 1 (Completed)**: Project Scaffolding, Domain Model, Database Entities, Repositories, Health Endpoint & Hardhat Setup.
 - **Batch 2 (Completed)**: Smart-Meter Validation Service, Privacy Engine (canonical SHA-256 digests, HMAC pseudonyms, role-based access), and Rule-based Anomaly Detection.
 - **Batch 3 (Completed; review findings remediated)**: Marketplace and trade workflow, `EnergyTrading.sol` with tests and deployment script, Web3j settlement with reconciliation, deployment identity, NEEDS_REVIEW recovery, signer lease and anchor audit.
-- **Batch 4**: Frontend Dashboard (Bootstrap/HTML/JS) and End-to-End Scenario Verification (Scenarios A through G).
+- **Batch 4 (Completed)**: Frontend dashboard (Bootstrap 5, HTML, JavaScript modules) for households, administrators and auditors; one-command local demo (`scripts/start-demo.ps1`); end-to-end verification of scenarios A through G in the browser.
 
 > Security note: from Batch 2 all non-public endpoints require authentication. Databases seeded by
 > the first checkpoint (`f46267a`) have demo passwords that are visible in Git history. The local

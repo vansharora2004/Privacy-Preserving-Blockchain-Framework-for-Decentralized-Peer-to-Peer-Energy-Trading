@@ -388,13 +388,13 @@ trade succeeded. Do not place secrets in JavaScript.
 -   [x] Rejected trades are audited without being presented as
     successful on-chain trades.
 -   [x] Blockchain errors do not create false confirmation states.
--   [ ] All demo scenarios can be performed from the browser.
+-   [x] All demo scenarios can be performed from the browser.
 -   [x] README documents setup, configuration, and run commands.
 
-Status (Batches 1-3): every item except the browser demo is implemented and verified by
-automated tests. The local-chain transaction hash and block number were also verified live against a
-Hardhat node and MySQL. "All demo scenarios can be performed from the browser" belongs to
-Phases 9-10 (Batch 4).
+Status (Batches 1-4): every item is implemented. Items 1-11 are verified by automated tests. The
+browser demo (Batch 4) was verified end to end with a headless browser against MySQL and a live
+Hardhat node: scenarios A-F (30 checks) and scenario G with outage and recovery (11 checks). The
+local-chain transaction hash and block number shown in the UI come from the real chain.
 
 ### Implementation status by phase
 
@@ -408,8 +408,8 @@ Phases 9-10 (Batch 4).
 | 6 Marketplace and trade workflow | 3 | Done, verified | `MarketplaceService`, `TradingService`, `TradeStateService`, `EnergyAvailabilityService`, `trade_events` |
 | 7 Solidity contract and Hardhat | 3 | Done, verified | `blockchain/contracts/EnergyTrading.sol`, `test/EnergyTrading.test.js`, `scripts/deploy.js` |
 | 8 Web3j integration | 3 | Done, verified; review findings remediated | `Web3jBlockchainGateway`, `TradeSettlementService`, `TradeRecoveryService`, `SignerLeaseService`, `BlockchainAlertService`, `MarketplaceMaintenance` |
-| 9 Frontend dashboard | 4 | Not started | |
-| 10 Integration and demo testing | 4 | Not started | |
+| 9 Frontend dashboard | 4 | Done, verified | `backend/src/main/resources/static/` (`index.html`, `css/app.css`, `js/*.js`), `SecurityConfig` (static assets, CSP), `DashboardIntegrationTests` |
+| 10 Integration and demo testing | 4 | Done, verified | `scripts/start-demo.ps1`, `blockchain/scripts/demo-env.js`, README demo walkthrough (scenarios A-G) |
 
 Implementation notes for Phases 6-8 (details in README):
 - The suggested `TradingService` is split into `MarketplaceService` (offers) and `TradingService`
@@ -435,6 +435,28 @@ Batch 3 review remediation (Phases 6-8; no change to Phases 9-10):
 - **Privacy:** public trades without pseudonyms, public households without energy figures, a
   k=3 market summary; stored per-trade party references and key ID survive key rotation.
 - Schema v3 via `V003__deployment_identity_recovery_and_signer_lease.sql`.
+
+Implementation notes for Phases 9-10:
+- The dashboard is a static single-page application (Bootstrap 5.3 from a WebJar, so no CDN; plain
+  JavaScript modules) served by Spring Boot. It has pages for visitors, households, administrators
+  and auditors and uses only the existing REST API.
+- Page-to-feature mapping from section 11:
+  - Dashboard: the household Overview and the admin Overview.
+  - Households: the admin Households page.
+  - Marketplace: the Marketplace page.
+  - Meter Security: the Smart meter page.
+  - Privacy Center: the Privacy center page and the Public view.
+  - Anomaly Detection: the Anomalies page.
+  - Blockchain History: the trade lists and trade details (trade ID, transaction hash, block,
+    status, history) and the Blockchain page.
+- The only backend changes were:
+  - permitting the static assets;
+  - a Content-Security-Policy and no-referrer header;
+  - no Basic challenge on XHR 401s, so the browser shows no native login dialog.
+  The API's authentication, role and ownership rules are unchanged.
+- Scenario G is demonstrated by closing the Hardhat node window. A restarted Hardhat node is an
+  empty chain, so recovery uses the Batch 3 procedure: redeploy (done by the start script), let
+  trades that were never broadcast be submitted, run the anchor audit, then re-anchor.
 
 ## 15. Final Notes
 

@@ -30,7 +30,11 @@ public class JsonSecurityErrorHandler implements AuthenticationEntryPoint, Acces
     @Override
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
-        response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"energy-trading\"");
+        // The dashboard marks its calls with X-Requested-With; omitting the challenge for them keeps the
+        // browser from showing its own login dialog. Other clients (curl, tests) still get the challenge.
+        if (!"XMLHttpRequest".equals(request.getHeader("X-Requested-With"))) {
+            response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"energy-trading\"");
+        }
         write(response, request, HttpStatus.UNAUTHORIZED, "Authentication required");
     }
 
