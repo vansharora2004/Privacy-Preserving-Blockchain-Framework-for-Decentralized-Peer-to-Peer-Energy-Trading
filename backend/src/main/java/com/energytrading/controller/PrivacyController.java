@@ -4,7 +4,10 @@ import com.energytrading.dto.PageResponse;
 import com.energytrading.dto.PrivateHouseholdView;
 import com.energytrading.dto.PrivateMeterReadingView;
 import com.energytrading.dto.PublicHouseholdView;
+import com.energytrading.dto.MarketSummaryView;
+import com.energytrading.dto.PublicTradeView;
 import com.energytrading.privacy.PrivacyService;
+import com.energytrading.service.TradingService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,12 +24,27 @@ import java.util.List;
 public class PrivacyController {
 
     private final PrivacyService privacyService;
+    private final TradingService tradingService;
 
-    public PrivacyController(PrivacyService privacyService) {
+    public PrivacyController(PrivacyService privacyService, TradingService tradingService) {
         this.privacyService = privacyService;
+        this.tradingService = tradingService;
     }
 
-    /** Public: pseudonym and validated sellable surplus only. */
+    /** Public: aggregate market figures only (withheld when too few sellers to stay non-identifying). */
+    @GetMapping("/privacy/public/market-summary")
+    public MarketSummaryView marketSummary() {
+        return tradingService.marketSummary();
+    }
+
+    /** Public: confirmed trades with amounts and blockchain references, without household identifiers. */
+    @GetMapping("/privacy/public/trades")
+    public PageResponse<PublicTradeView> publicTrades(@RequestParam(defaultValue = "0") int page,
+                                                      @RequestParam(defaultValue = "20") int size) {
+        return tradingService.publicConfirmedTrades(page, size);
+    }
+
+    /** Public: household pseudonyms only (no per-household energy figures). */
     @GetMapping("/privacy/public/households")
     public List<PublicHouseholdView> publicHouseholds() {
         return privacyService.publicHouseholds();

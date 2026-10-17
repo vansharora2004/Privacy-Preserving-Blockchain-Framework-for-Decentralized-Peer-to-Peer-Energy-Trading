@@ -12,7 +12,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "energy_offers", indexes = {
+@Table(name = "energy_offers",
+    uniqueConstraints = {
+        // Idempotent offer creation: one offer per seller and client request key
+        @UniqueConstraint(name = "uk_offer_seller_request", columnNames = {"seller_id", "client_request_id"})
+    },
+    indexes = {
+    @Index(name = "idx_offer_status_expiry", columnList = "status, expires_at"),
     @Index(name = "idx_offer_id", columnList = "offerId", unique = true),
     @Index(name = "idx_offer_status", columnList = "status"),
     @Index(name = "idx_offer_seller", columnList = "seller_id"),
@@ -64,6 +70,14 @@ public class EnergyOffer {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    /** After this instant the offer can no longer be traded (set to EXPIRED by the scheduler). */
+    @Column(nullable = false)
+    private LocalDateTime expiresAt;
+
+    /** Client-supplied Idempotency-Key, unique per seller; null when the client sent none. */
+    @Column(length = 64)
+    private String clientRequestId;
+
     public EnergyOffer() {
     }
 
@@ -83,6 +97,10 @@ public class EnergyOffer {
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
+        if (this.expiresAt == null) {
+            // Same default lifetime as migration V002 uses for pre-existing offers
+            this.expiresAt = this.createdAt.plusHours(24);
+        }
     }
 
     @PreUpdate
@@ -91,6 +109,22 @@ public class EnergyOffer {
     }
 
     // Getters and Setters
+    public LocalDateTime getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(LocalDateTime expiresAt) {
+        this.expiresAt = expiresAt;
+    }
+
+    public String getClientRequestId() {
+        return clientRequestId;
+    }
+
+    public void setClientRequestId(String clientRequestId) {
+        this.clientRequestId = clientRequestId;
+    }
+
     public Long getId() {
         return id;
     }

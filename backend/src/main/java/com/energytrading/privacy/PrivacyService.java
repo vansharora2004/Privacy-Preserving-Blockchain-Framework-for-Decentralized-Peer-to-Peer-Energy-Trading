@@ -14,6 +14,7 @@ import com.energytrading.repository.MeterReadingRepository;
 import com.energytrading.repository.UserRepository;
 import com.energytrading.security.AccessPolicy;
 import com.energytrading.service.AuditService;
+import com.energytrading.service.EnergyAvailabilityService;
 import com.energytrading.service.EnergyValues;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -45,10 +46,13 @@ public class PrivacyService {
     private final AccessPolicy accessPolicy;
     private final AuditService auditService;
     private final Clock clock;
+    private final EnergyAvailabilityService availabilityService;
 
     public PrivacyService(UserRepository userRepository, MeterReadingRepository meterReadingRepository,
                           PseudonymService pseudonymService, DigestService digestService,
-                          AccessPolicy accessPolicy, AuditService auditService, Clock clock) {
+                          AccessPolicy accessPolicy, AuditService auditService, Clock clock,
+                          EnergyAvailabilityService availabilityService) {
+        this.availabilityService = availabilityService;
         this.userRepository = userRepository;
         this.meterReadingRepository = meterReadingRepository;
         this.pseudonymService = pseudonymService;
@@ -58,12 +62,14 @@ public class PrivacyService {
         this.clock = clock;
     }
 
-    /** Households (role HOUSEHOLD only) with their pseudonym and validated sellable surplus. */
+    /**
+     * Households (role HOUSEHOLD only) as pseudonyms. Energy availability is deliberately not published
+     * per household (it would track live generation and consumption).
+     */
     @Transactional(readOnly = true)
     public List<PublicHouseholdView> publicHouseholds() {
         return userRepository.findByRoleOrderByHouseholdCodeAsc(Role.ROLE_HOUSEHOLD).stream()
-                .map(u -> new PublicHouseholdView(pseudonymService.householdPseudonym(u.getHouseholdCode()),
-                        orZero(EnergyValues.toBigDecimal(u.getCurrentSurplusKwh()))))
+                .map(u -> new PublicHouseholdView(pseudonymService.householdPseudonym(u.getHouseholdCode())))
                 .toList();
     }
 

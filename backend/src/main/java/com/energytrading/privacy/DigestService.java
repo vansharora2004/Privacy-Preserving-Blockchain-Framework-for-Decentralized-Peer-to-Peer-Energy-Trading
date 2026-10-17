@@ -53,6 +53,36 @@ public class DigestService {
                 energyGeneratedKwh, energyConsumedKwh, availableKwh, readingTime));
     }
 
+    /**
+     * Canonical form of an accepted trade, anchored on-chain as {@code recordDigest}. It contains
+     * the random trade ID, so the on-chain digest cannot be confirmed by guessing amounts alone.
+     */
+    public CanonicalRecord tradeRecord(String tradeId, String offerId, String sellerCode, String buyerCode,
+                                       BigDecimal quantityKwh, BigDecimal pricePerKwh, BigDecimal totalAmount) {
+        return CanonicalRecord.of("trade", 1)
+                .field("tradeId", tradeId)
+                .field("offerId", offerId)
+                .field("sellerCode", sellerCode)
+                .field("buyerCode", buyerCode)
+                .field("quantityKwh", quantityKwh)
+                .field("pricePerKwh", pricePerKwh)
+                .field("totalAmount", totalAmount);
+    }
+
+    public String tradeDigest(String tradeId, String offerId, String sellerCode, String buyerCode,
+                              BigDecimal quantityKwh, BigDecimal pricePerKwh, BigDecimal totalAmount) {
+        return sha256Hex(tradeRecord(tradeId, offerId, sellerCode, buyerCode, quantityKwh, pricePerKwh, totalAmount));
+    }
+
+    /** On-chain trade identifier: SHA-256("energy-trade|" + tradeId). The trade ID itself never goes on-chain. */
+    public byte[] tradeKey(String tradeId) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(("energy-trade|" + tradeId).getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 not available", e);
+        }
+    }
+
     /** Recomputes the Batch 1 seed-data digest so pre-existing rows can still be verified. */
     public String legacyMeterReadingDigest(String householdCode, String readingId, Long sequenceNo,
                                            Double generated, Double consumed, Double available) {

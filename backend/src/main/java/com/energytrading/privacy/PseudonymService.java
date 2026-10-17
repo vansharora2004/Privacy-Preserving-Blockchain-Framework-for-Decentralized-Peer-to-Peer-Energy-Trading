@@ -51,6 +51,36 @@ public class PseudonymService {
         }
     }
 
+    /**
+     * Per-trade party reference for the blockchain: HMAC-SHA-256(key, "trade-party|" + tradeId + "|"
+     * + role + "|" + householdCode), 32 bytes. Because the trade ID is part of the input, the same
+     * household gets a different reference in every trade, so on-chain records cannot be linked
+     * to each other without the key.
+     */
+    public byte[] tradePartyReference(String tradeId, String role, String householdCode) {
+        try {
+            Mac mac = Mac.getInstance(ALGORITHM);
+            mac.init(key);
+            return mac.doFinal(("trade-party|" + tradeId + "|" + role + "|" + householdCode).getBytes(StandardCharsets.UTF_8));
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("HMAC-SHA-256 not available", e);
+        }
+    }
+
+    /**
+     * Fingerprint of the active key (HMAC of a fixed label), stored with each trade's party references
+     * so that verification can tell which key produced them. It does not reveal the key.
+     */
+    public String keyId() {
+        try {
+            Mac mac = Mac.getInstance(ALGORITHM);
+            mac.init(key);
+            return "k-" + HexFormat.of().formatHex(mac.doFinal("key-id".getBytes(StandardCharsets.UTF_8))).substring(0, 16);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("HMAC-SHA-256 not available", e);
+        }
+    }
+
     @Override
     public String toString() {
         return "PseudonymService[key=<redacted>]";

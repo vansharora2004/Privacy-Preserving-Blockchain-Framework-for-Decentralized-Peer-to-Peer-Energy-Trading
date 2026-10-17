@@ -8,6 +8,37 @@ one on a copy first.
 | Version | File | Upgrades |
 |---|---|---|
 | V001 | `V001__align_hibernate_generated_schema.sql` | A database created by Hibernate `ddl-auto=update` (before the versioned schema) → schema v1 |
+| V002 | `V002__marketplace_and_blockchain_tracking.sql` | schema v1 → v2 (Batch 3): offer expiry and idempotency keys, trade blockchain-tracking columns, unique `tx_hash`, new `trade_events` table |
+| V003 | `V003__deployment_identity_recovery_and_signer_lease.sql` | schema v2 → v3 (Batch 3 remediation): deployment identity, stored party references, review and anchor tracking, `trade_submission_attempts`, `blockchain_alerts`, `blockchain_signer_lease` |
+
+Apply migrations in order. `database/schema.sql` always describes the latest version (currently v3).
+The backend validates the schema at startup (`JPA_DDL_AUTO=validate`), so after upgrading the
+code it does not start until the database is at the version it expects.
+
+## V003 (Batch 3 remediation)
+V003 is purely additive: no table or column is dropped and no existing value changes.
+- `trade_transactions` gains nullable `deployment_id`, `chain_genesis_hash`, `seller_ref`,
+  `buyer_ref`, `privacy_key_id`, `review_reason`, `reanchor_deployment_id`, `anchor_checked_at`
+  and the index `idx_trade_status_anchor`. Existing rows keep NULL in all of them: confirmed trades
+  get their deployment recorded on their first successful anchor audit, and trades without stored
+  party references keep deriving them from the current pseudonym key.
+- New tables `trade_submission_attempts` (one row per signed transaction; unique `tx_hash`,
+  foreign key to the trade), `blockchain_alerts` (de-duplicated by `open_key`) and
+  `blockchain_signer_lease` (one row per signer address; fencing token). They start empty.
+- The raw privacy key is never stored; `privacy_key_id` is a one-way identifier of it.
+
+The preflight aborts if the database is not at v2 (V002 not applied) or if V003 was already
+applied. Rehearsal (performed for this release on disposable databases): a fresh v1 database
+upgraded with V002 and V003 is identical to a fresh `schema.sql` build; a copy of an existing v2
+database upgrades with every row unchanged; a second run and a v1 database both abort before any
+change. Follow the same back-up / rehearse / apply procedure as below, with the V003 file name.
+
+## V002 (Batch 3)
+V002 is purely additive: no table is dropped and no existing value changes. Pre-existing offers get
+`expires_at = created_at + 24h`, and pre-existing trades get `updated_at = created_at`. The preflight
+aborts if the database is not at v1, if it is already migrated, or if duplicate transaction hashes
+would block the new unique key. The procedure is the same as for V001: back up, restore the backup
+into a scratch copy, rehearse there, then apply.
 
 ## When V001 is needed
 Run V001 if the backend fails to start with:

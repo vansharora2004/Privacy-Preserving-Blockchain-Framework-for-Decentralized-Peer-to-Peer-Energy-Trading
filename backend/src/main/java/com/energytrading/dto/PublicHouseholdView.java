@@ -1,7 +1,9 @@
 package com.energytrading.dto;
 
-import java.math.BigDecimal;
-
-/** Public, pseudonymous household view: no names, e-mail, household code, database ID or raw readings. */
-public record PublicHouseholdView(String householdPseudonym, BigDecimal availableSurplusKwh) {
+/**
+ * Public household directory entry: pseudonym only. Per-household energy availability is no
+ * longer published (it tracked live generation and consumption); sellers disclose energy only
+ * through the offers they create, and aggregate figures are in /api/privacy/public/market-summary.
+ */
+public record PublicHouseholdView(String householdPseudonym) {
 }

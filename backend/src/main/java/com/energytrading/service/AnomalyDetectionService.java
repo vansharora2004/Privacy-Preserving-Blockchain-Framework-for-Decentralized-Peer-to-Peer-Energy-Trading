@@ -130,6 +130,49 @@ public class AnomalyDetectionService {
         return Optional.empty();
     }
 
+    /** A trade request larger than the quantity still unreserved in the offer is rejected. */
+    public Optional<RuleFinding> checkOfferRemaining(BigDecimal requestedKwh, BigDecimal remainingKwh) {
+        if (requestedKwh == null || requestedKwh.signum() <= 0 || remainingKwh == null) {
+            return Optional.empty();
+        }
+        if (requestedKwh.compareTo(remainingKwh) > 0) {
+            return Optional.of(new RuleFinding(AnomalyRule.OVERSELLING, "quantityKwh",
+                    "Requested " + plain(requestedKwh) + " kWh exceeds the " + plain(remainingKwh)
+                            + " kWh still available in this offer"));
+        }
+        return Optional.empty();
+    }
+
+    // ------------------------------------------------------------------
+    // Marketplace rules
+    // ------------------------------------------------------------------
+
+    public Optional<RuleFinding> checkSelfTrade(Long sellerId, Long buyerId) {
+        if (sellerId != null && sellerId.equals(buyerId)) {
+            return Optional.of(new RuleFinding(AnomalyRule.SELF_TRADE, "offerId",
+                    "A household cannot buy its own offer"));
+        }
+        return Optional.empty();
+    }
+
+    public Optional<RuleFinding> checkFunds(BigDecimal balance, BigDecimal total) {
+        if (balance == null || total == null || balance.compareTo(total) < 0) {
+            return Optional.of(new RuleFinding(AnomalyRule.INSUFFICIENT_FUNDS, "quantityKwh",
+                    "The trade total of " + (total == null ? "?" : total.toPlainString()) + " exceeds the available balance"));
+        }
+        return Optional.empty();
+    }
+
+    /** Flags a buyer whose trade requests in the last hour would exceed {@code max-trades-per-hour}. */
+    public Optional<RuleFinding> checkTradeFrequency(long tradesInLastHour) {
+        if (tradesInLastHour + 1 > properties.maxTradesPerHour()) {
+            return Optional.of(new RuleFinding(AnomalyRule.HIGH_TRADE_FREQUENCY, null,
+                    "This would be trade " + (tradesInLastHour + 1) + " within 60 minutes (limit "
+                            + properties.maxTradesPerHour() + "); flagged for review"));
+        }
+        return Optional.empty();
+    }
+
     // ------------------------------------------------------------------
     // Rule C: sudden reading changes
     // ------------------------------------------------------------------
@@ -204,7 +247,14 @@ public class AnomalyDetectionService {
     // ------------------------------------------------------------------
 
     public OfferCheckResponse evaluateProposedOffer(User seller, BigDecimal quantityKwh, BigDecimal pricePerKwh, int maxQuantityScale) {
-        BigDecimal surplus = EnergyValues.toBigDecimal(seller.getCurrentSurplusKwh());
+        return evaluateProposedOffer(seller, quantityKwh, pricePerKwh, maxQuantityScale,
+                EnergyValues.toBigDecimal(seller.getCurrentSurplusKwh()));
+    }
+
+    /** Same checks against an explicitly computed availability (see {@link EnergyAvailabilityService}). */
+    public OfferCheckResponse evaluateProposedOffer(User seller, BigDecimal quantityKwh, BigDecimal pricePerKwh,
+                                                    int maxQuantityScale, BigDecimal availableKwh) {
+        BigDecimal surplus = availableKwh;
         List<RuleFinding> findings = new ArrayList<>(checkQuantity("quantityKwh", quantityKwh, false, maxQuantityScale));
         findings.addAll(checkPrice(pricePerKwh));
         checkOverselling(quantityKwh, surplus).ifPresent(findings::add);

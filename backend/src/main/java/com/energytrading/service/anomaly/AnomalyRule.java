@@ -31,7 +31,12 @@ public enum AnomalyRule {
     EXCESSIVE_ACTIVITY(AnomalySeverity.MEDIUM, RuleOutcome.FLAGGED),
     OVERSELLING(AnomalySeverity.HIGH, RuleOutcome.REJECTED),
     INVALID_PRICE(AnomalySeverity.HIGH, RuleOutcome.REJECTED),
-    SUSPICIOUS_PRICE(AnomalySeverity.MEDIUM, RuleOutcome.FLAGGED);
+    SUSPICIOUS_PRICE(AnomalySeverity.MEDIUM, RuleOutcome.FLAGGED),
+    // Marketplace rules (Batch 3)
+    SELF_TRADE(AnomalySeverity.HIGH, RuleOutcome.REJECTED),
+    INSUFFICIENT_FUNDS(AnomalySeverity.LOW, RuleOutcome.REJECTED),
+    UNVERIFIED_SOURCE_READING(AnomalySeverity.HIGH, RuleOutcome.REJECTED),
+    HIGH_TRADE_FREQUENCY(AnomalySeverity.MEDIUM, RuleOutcome.FLAGGED);
 
     private final AnomalySeverity severity;
     private final RuleOutcome outcome;

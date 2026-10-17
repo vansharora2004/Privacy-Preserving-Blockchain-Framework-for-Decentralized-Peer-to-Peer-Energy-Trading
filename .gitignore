@@ -97,6 +97,8 @@ lerna-debug.log*
 .pnpm-debug.log*
 
 # Hardhat compilation artifacts & cache
+# Local deployment records (addresses of an ephemeral local chain)
+blockchain/deployments/
 artifacts/
 cache/
 typechain/

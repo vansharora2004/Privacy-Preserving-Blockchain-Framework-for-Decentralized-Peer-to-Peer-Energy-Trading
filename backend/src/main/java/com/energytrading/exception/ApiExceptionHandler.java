@@ -6,11 +6,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -31,6 +34,21 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> notFound(ResourceNotFoundException e, HttpServletRequest request) {
         return error(HttpStatus.NOT_FOUND, e.getMessage(), request, List.of());
+    }
+
+    @ExceptionHandler(BusinessRuleException.class)
+    public ResponseEntity<ApiError> businessRule(BusinessRuleException e, HttpServletRequest request) {
+        return error(e.getStatus(), e.getMessage(), request, List.of());
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiError> missingHeader(MissingRequestHeaderException e, HttpServletRequest request) {
+        return error(HttpStatus.BAD_REQUEST, "Missing required header '" + e.getHeaderName() + "'", request, List.of());
+    }
+
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> lockTimeout(PessimisticLockingFailureException e, HttpServletRequest request) {
+        return error(HttpStatus.CONFLICT, "The resource is busy; retry the request with the same Idempotency-Key", request, List.of());
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
@@ -70,6 +88,14 @@ public class ApiExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ApiError> method(HttpRequestMethodNotSupportedException e, HttpServletRequest request) {
         return error(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed", request, List.of());
+    }
+
+    /** Conflicting values are never echoed: only the constraint name is logged. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> integrity(DataIntegrityViolationException e, HttpServletRequest request) {
+        String constraint = e.getCause() instanceof org.hibernate.exception.ConstraintViolationException c ? c.getConstraintName() : "unknown";
+        log.warn("Data integrity violation on {} {} (constraint {})", request.getMethod(), request.getRequestURI(), constraint);
+        return error(HttpStatus.CONFLICT, "The request conflicts with existing data", request, List.of());
     }
 
     @ExceptionHandler(Exception.class)

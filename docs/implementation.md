@@ -374,22 +374,67 @@ trade succeeded. Do not place secrets in JavaScript.
 
 ## 14. Completion Checklist
 
--   [ ] Backend starts successfully.
--   [ ] MySQL schema and demo data are available.
--   [ ] Valid meter readings can be accepted.
--   [ ] Invalid and replayed readings are rejected.
--   [ ] Offers cannot exceed available energy.
--   [ ] Each anomaly rule has a test and readable explanation.
--   [ ] Public and private data endpoints enforce the intended access
+-   [x] Backend starts successfully.
+-   [x] MySQL schema and demo data are available.
+-   [x] Valid meter readings can be accepted.
+-   [x] Invalid and replayed readings are rejected.
+-   [x] Offers cannot exceed available energy.
+-   [x] Each anomaly rule has a test and readable explanation.
+-   [x] Public and private data endpoints enforce the intended access
     rules.
--   [ ] Smart contract enforces its own basic trade rules.
--   [ ] A valid trade yields an actual local-chain transaction hash and
+-   [x] Smart contract enforces its own basic trade rules.
+-   [x] A valid trade yields an actual local-chain transaction hash and
     block number.
--   [ ] Rejected trades are audited without being presented as
+-   [x] Rejected trades are audited without being presented as
     successful on-chain trades.
--   [ ] Blockchain errors do not create false confirmation states.
+-   [x] Blockchain errors do not create false confirmation states.
 -   [ ] All demo scenarios can be performed from the browser.
--   [ ] README documents setup, configuration, and run commands.
+-   [x] README documents setup, configuration, and run commands.
+
+Status (Batches 1-3): every item except the browser demo is implemented and verified by
+automated tests. The local-chain transaction hash and block number were also verified live against a
+Hardhat node and MySQL. "All demo scenarios can be performed from the browser" belongs to
+Phases 9-10 (Batch 4).
+
+### Implementation status by phase
+
+| Phase | Batch | Status | Main artefacts |
+|---|---|---|---|
+| 1 Project setup | 1 | Done, verified | Spring Boot, MySQL, Hardhat 2 |
+| 2 Database and domain model | 1 | Done, verified | `database/schema.sql` (v3), migrations V001-V003, entities, repositories |
+| 3 Smart-meter validation | 2 | Done, verified | `SmartMeterValidationService`, `MeterReadingService` |
+| 4 Privacy and access control | 2 | Done, verified | `PrivacyService`, `DigestService`, `PseudonymService`, `AccessPolicy` |
+| 5 Rule-based anomaly detection | 2 | Done, verified | `AnomalyDetectionService`, `AnomalyRule` |
+| 6 Marketplace and trade workflow | 3 | Done, verified | `MarketplaceService`, `TradingService`, `TradeStateService`, `EnergyAvailabilityService`, `trade_events` |
+| 7 Solidity contract and Hardhat | 3 | Done, verified | `blockchain/contracts/EnergyTrading.sol`, `test/EnergyTrading.test.js`, `scripts/deploy.js` |
+| 8 Web3j integration | 3 | Done, verified; review findings remediated | `Web3jBlockchainGateway`, `TradeSettlementService`, `TradeRecoveryService`, `SignerLeaseService`, `BlockchainAlertService`, `MarketplaceMaintenance` |
+| 9 Frontend dashboard | 4 | Not started | |
+| 10 Integration and demo testing | 4 | Not started | |
+
+Implementation notes for Phases 6-8 (details in README):
+- The suggested `TradingService` is split into `MarketplaceService` (offers) and `TradingService`
+  (trades). The suggested `BlockchainService` is `TradeSettlementService` plus the
+  `BlockchainGateway` interface, implemented with Web3j raw ABI encoding (no generated wrapper).
+- Units are Wh for energy and paise for money; the contract recomputes and checks the total.
+- Database and chain are reconciled by an explicit write-ahead and reconciliation workflow, not an
+  atomic transaction.
+
+Batch 3 review remediation (Phases 6-8; no change to Phases 9-10):
+- **Deployment identity:** the contract (`EnergyTrading/2`) derives a `deploymentId` at
+  construction; the backend requires `BLOCKCHAIN_DEPLOYMENT_ID` and checks it and the genesis hash
+  on every decision, so a chain reset at the same address is detected.
+- **NEEDS_REVIEW:** trades whose outcome automation cannot establish (deployment changed,
+  inconsistent evidence) are held with funds reserved and resolved only by audited, evidence-gated
+  administrator actions (`resolve-confirmed`, `resolve-failed`, `re-anchor`).
+- **Evidence-based confirmation:** receipt target and `TradeRecorded` event, on-chain status
+  Recorded or Settled, data match, unchanged deployment.
+- **Resubmission:** same nonce while the old nonce is unused, so at most one attempt can be mined;
+  every attempt is kept in `trade_submission_attempts`.
+- **Signer lease** with fencing token across backend instances; de-duplicated `blockchain_alerts`;
+  scheduled **anchor audit** of confirmed trades.
+- **Privacy:** public trades without pseudonyms, public households without energy figures, a
+  k=3 market summary; stored per-trade party references and key ID survive key rotation.
+- Schema v3 via `V003__deployment_identity_recovery_and_signer_lease.sql`.
 
 ## 15. Final Notes
 

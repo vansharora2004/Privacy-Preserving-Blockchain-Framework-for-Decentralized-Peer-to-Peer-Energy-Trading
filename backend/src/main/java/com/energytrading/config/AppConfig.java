@@ -7,7 +7,8 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 
 @Configuration
-@EnableConfigurationProperties({MeterValidationProperties.class, AnomalyProperties.class, PrivacyProperties.class})
+@EnableConfigurationProperties({MeterValidationProperties.class, AnomalyProperties.class, PrivacyProperties.class,
+        MarketplaceProperties.class, BlockchainProperties.class})
 public class AppConfig {
 
     /**

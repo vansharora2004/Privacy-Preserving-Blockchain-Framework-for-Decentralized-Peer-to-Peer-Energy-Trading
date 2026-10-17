@@ -5,5 +5,7 @@ public enum OfferStatus {
     PARTIALLY_FILLED,
     FILLED,
     CANCELLED,
-    REJECTED
+    REJECTED,
+    /** Passed its expiresAt without being filled; unsold energy is released. */
+    EXPIRED
 }
